@@ -204,14 +204,12 @@ end
 
 local function communicator()
   while true do
-    while true do
-      local ev = table.pack(os.pullEvent())
-      if ev[1] == "http_success" or ev[1] == "http_failure" then
-        printDebug("###")
-        printDebug(ev[2])
-        printDebug(ev[3].readAll())
-        printDebug("###")
-      end
+    local ev = table.pack(os.pullEvent())
+    if ev[1] == "http_success" or ev[1] == "http_failure" then
+      printDebug("###")
+      printDebug(ev[2])
+      printDebug(ev[3].readAll())
+      printDebug("###")
     end
   end
 end
