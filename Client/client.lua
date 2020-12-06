@@ -1,8 +1,15 @@
 local expect = require("cc.expect").expect
-
+local tArgs = {...}
+local sEnvironment = tArgs[1] or "development"
 local sProtocol = "http"
 local sHttpServer = "192.168.1.80"
 local sPort = "8080"
+if sEnvironment == "production" then
+  sPort = "80"
+elseif sEnvironment ~= "development" then
+  error("Unknown environment: " .. tostring(sEnvironment))
+end
+
 local nSensorTimeout = 0.5
 local paths = {
   alive = "alive",
