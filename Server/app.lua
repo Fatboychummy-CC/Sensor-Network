@@ -35,9 +35,7 @@ app:post("/detections/new", json_params(function(self)
     return {skip_render = true, status = 400}
   end
 
-  print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", alarmHistory.n)
   alarmHistory:add(self.params)
-  print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA2", alarmHistory.n)
 
   ngx.print("Received.")
   return {skip_render = true}
