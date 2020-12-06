@@ -19,11 +19,11 @@ function alarmHistory:det()
 end
 
 app:get("/alive", function()
-  return "true"
+  return {skip_render = true, status = 200}
 end)
 
 app:get("/detections", function(self)
-  return "Not yet implemented."
+  return {skip_render = true, status = 501}
 end)
 
 app:post("/detections/new", json_params(function(self)
