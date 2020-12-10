@@ -25,15 +25,15 @@ You will need to tweak the program to use a different IP address. There are 3 li
 
 Upload the code to the arduino, turn on the server, then you should be good to go.
 
-## Computercraft:
-Place a computer, then a block in front of it, and a block below that block. Place a redstone torch underneath of the computer on the side of the block you placed. Finally, connect tripwires to the two blocks you placed.
-
-You will need to tweak the program to use a different IP address/port.
-
 ### IMPORTANT
 The TX pin needs to go to a 5V->3.3V voltage divider! It is possible that 5V will kill the ESP8266 (though sometimes it works, better to be safe than sorry though).
 
 Similarly, pin 4 needs to go to a voltage regulator designed for 3.3v.
+
+## Computercraft:
+Place a computer, then a block in front of it, and a block below that block. Place a redstone torch underneath of the computer on the side of the block you placed. Finally, connect tripwires to the two blocks you placed.
+
+You will need to tweak the program to use a different IP address/port.
 
 # Notes
 I used an extra voltage divider in my setup because my arduino's 3.3v output was shot.
