@@ -1,11 +1,9 @@
 #include <SoftwareSerial.h>
 
-const char* host = "192.168.1.80";
-
-char START[] = "AT+CIPSTART=\"TCP\",\"192.168.1.80\",80";
-char GET[]   = "GET /alive HTTP/1.1\r\nHost: 192.168.1.80\r\n\r\n";
+char START[] = "AT+CIPSTART=\"TCP\",\"##########################\",80";
+char GET[]   = "GET /alive HTTP/1.1\r\nHost: #########################\r\n\r\n";
 // I wanted to be able to do POSTs dynamically, but was running into too many problems with not enough time.
-char POST[]  = "POST /detections/new HTTP/1.1\r\nHost: 192.168.1.80\r\nContent-Length: 41\r\nContent-Type: application/json\r\n\r\n{\"Time_Recorded\":0, \"Sensor_Name\":\"Bruh\"}";
+char POST[]  = "POST /detections/new HTTP/1.1\r\nHost: ########################\r\nContent-Length: 41\r\nContent-Type: application/json\r\n\r\n{\"Time_Recorded\":0, \"Sensor_Name\":\"Bruh\"}";
 char CLOSE[] = "AT+CIPCLOSE";
 
 unsigned int MAX_TRANSMIT_SIZE = 300;
