@@ -4,13 +4,13 @@ const char* host = "192.168.1.80";
 
 char START[] = "AT+CIPSTART=\"TCP\",\"192.168.1.80\",80";
 char GET[]   = "GET /alive HTTP/1.1\r\nHost: 192.168.1.80\r\n\r\n";
+// I wanted to be able to do POSTs dynamically, but was running into too many problems with not enough time.
 char POST[]  = "POST /detections/new HTTP/1.1\r\nHost: 192.168.1.80\r\nContent-Length: 41\r\nContent-Type: application/json\r\n\r\n{\"Time_Recorded\":0, \"Sensor_Name\":\"Bruh\"}";
 char CLOSE[] = "AT+CIPCLOSE";
 
-const char* http = "HTTP/1.1";
-const char* port = "80";
 unsigned int MAX_TRANSMIT_SIZE = 300;
 
+// Debug codes, useful for if arduino is plugged into a power pack and not a computer.
 class DebugCodes {
  public:
   static void Init() {
@@ -30,20 +30,24 @@ class DebugCodes {
   }
 };
 
+// ESP serial on lines 2 and 3 (D2, D3)
 SoftwareSerial ESPSerial(2, 3); // RX | TX
 
+// Display debug info, and return what was sent so it can be forwarded to ESP as well.
 char* DebugToESP(char* l) {
   Serial.print("->ESP: ");
   Serial.println(l);
   return l;
 }
 
+// Unused, kept in here for future testing.
 void DebugFromESP(char* l) {
   Serial.println("DEBUG FROM SERIAL:");
   Serial.print("<-ESP: ");
   Serial.println(l);
 }
 
+// Arduino's strcpy does not have the `pos` argument, for whatever reason.
 bool strcpy2(char* buff, char* clone, unsigned int pos, unsigned int maxSize) {
   if (pos + strlen(clone) >= maxSize)
     return false;
@@ -57,12 +61,14 @@ bool strcpy2(char* buff, char* clone, unsigned int pos, unsigned int maxSize) {
   return true;
 }
 
+// Clears the buffer so that we don't run out of dynamic memory.
 void ClearESPBuffer() {
   ESPSerial.setTimeout(1);
   ESPSerial.readString();
   ESPSerial.setTimeout(5000);
 }
 
+// opens a connection. Only allows one message every ten seconds.
 unsigned long lastTransmit = millis();
 bool OpenConnection() {
   Serial.print("Opening...");
@@ -80,27 +86,31 @@ bool OpenConnection() {
   return ESPSerial.find("OK");
 }
 
+// Sends a TCP buffer (for http requests)
 bool SendBuffer(const char* buff) {
-
+  // CIPSEND: tell ESP how many bytes we want to send over TCP
   char itoaBuffer[3];
   itoa(strlen(buff), itoaBuffer, 10);
   char buffLen[15] = "AT+CIPSEND=";
   strcpy2(buffLen, itoaBuffer, 11, 15);
-  
   ESPSerial.println(DebugToESP(buffLen));
+
+  // If ESP is ready for data transmission
   if (ESPSerial.find("OK")) {
+    // Send the buffer
     ESPSerial.print(DebugToESP(buff));
-    char* findBuf = "Recv";
-    
-    if (!ESPSerial.find(findBuf)) {
+
+    // Wait for ESP to acknowledge it received all the data.
+    if (!ESPSerial.find("Recv")) {
+      // if 5 seconds pass, ESP did not receive something.
       Serial.println("ESP expected different buffer length.");
-      Serial.println("Flooding ESP...");
+      Serial.println("Flooding ESP to kill buffer...");
       for (int i = 0; i < 100; i++)
         ESPSerial.println("AAAAAAAAAAAAAAAAAAAAAAAA");
       Serial.println("Flooded.");
       return false;
     } 
-
+    
     Serial.println("Buffer was sent to ESP, waiting for ESP response.");
     bool findSend = ESPSerial.find("SEND OK");
     bool findIPD = ESPSerial.find("+IPD,");
@@ -110,18 +120,19 @@ bool SendBuffer(const char* buff) {
     Serial.println(findIPD);
     return findSend && findIPD;
   }
+  
   Serial.println("ESP does not want to send stuff yet, it is unhappy for some reason.");
   return false;
 }
 
+// determine the response code from ESP's response.
 int GetResponseCode() {
-
-  
   ESPSerial.find("HTTP/1.1 ");
   String resp = ESPSerial.readStringUntil(' ');
   return resp.toInt();
 }
 
+// internal poster, creates a connection then transmits the POST buffer.
 int _makePOST() {
   if (OpenConnection()) {
     if (SendBuffer(POST)) {
@@ -137,12 +148,14 @@ int _makePOST() {
   return -1; // failed to make connection
 }
 
+// Wrapper for internal makepost - Clears buffer after making request.
 int MakePostRequest() {
   int resp = _makePOST();
   ClearESPBuffer();
   return resp;
 }
 
+// internal getter, creates a connection then transmits the GET buffer.
 int _makeGET() {
   if (OpenConnection()) {
     if (SendBuffer(GET)) {
@@ -161,17 +174,19 @@ int _makeGET() {
   return -1; // failed to make connection.
 }
 
+// Wrapper for internal makeget - Clears buffer after making request.
 int MakeBasicGetRequest() {
   int resp = _makeGET();
   ClearESPBuffer();
   return resp;
 }
 
+// Init arduino
 void setup() {
   DebugCodes::Init();
-  pinMode(4, OUTPUT); // pin 4 goes to ENABLE
-  pinMode(9, INPUT);  // bottom sensor
-  pinMode(10, INPUT); // top sensor
+  pinMode(4, OUTPUT); // pin 4 goes to ENABLE of ESP
+  pinMode(9, INPUT);  // bottom sensor. INPUT should be LOW when detecting an object
+  pinMode(10, INPUT); // top sensor. INPUT should be LOW when detecting an object
 
   // init serial connections
   Serial.begin(115200);
@@ -179,16 +194,36 @@ void setup() {
   ESPSerial.setTimeout(5000);
 
   // reset the wireless module.
-  Serial.println("Attempting reset...");
+  Serial.println("Resetting module...");
   digitalWrite(4, LOW); 
   delay(200);
   digitalWrite(4, HIGH);
   delay(500);
   ESPSerial.println(DebugToESP("AT+RST"));
-  Serial.println("Sent commands...");
+  Serial.println("Sent reset commands...");
 
+  // if the ESP resets properly...
   if (ESPSerial.find("ready")) {
     Serial.println("Success.");
+    
+    /*
+     * ESP follows basic run:
+     * 1. RESET
+     * 2. Attempt connection to WiFi (if info is stored in EEPROM)
+     * 3. Get IP address from router
+     * Before these occur, the ESP cannot transmit any information, so we must wait.
+     * 
+     * ESP needs to be programmed to your WiFi manually.
+     * Commands to do so are as follows:
+     * AT+CWLAP 
+     *   Lists access points the ESP can reach.
+     * AT+CWJAP=<SSID>,<PASS>
+     *   Connects to an access point (and saves it's info in EEPROM).
+     *   For example, if SSID is "Mom's House WIFI" and Password is "URMOM420", the command you would enter is as follows:
+     *     AT+CWJAP="Mom's House WIFI","URMOM420"
+     *  
+     * Ensure you are using both NL and CR in the terminal.
+     */
     Serial.println("Waiting for connection to wifi...");
     ESPSerial.setTimeout(30000);
     if (!ESPSerial.find("WIFI CONNECTED")) {
@@ -200,34 +235,39 @@ void setup() {
       Serial.println("Failed to get IP in 30 seconds.");
       DebugCodes::Throw(4);
     }
-    ESPSerial.setTimeout(5000);
+    ESPSerial.setTimeout(5000); // set timeout to a more reasonable time for http requests
     Serial.println("Success!");
-    Serial.println("Checking connection to server...");
 
+    // Check if the server is running.
+    Serial.println("Checking connection to server...");
     int respCode = MakeBasicGetRequest();
     if (respCode == 200) {
-      Serial.println("WOOT WOOT");
+      Serial.println("Server is online.");
       delay(4000); // ensure the ESP has time to reset itself
       Serial.println("SYSTEM STARTED.");
       delay(750);
     } else {
-      Serial.println("Expected response 200, got " + String(respCode));
+      Serial.print("Expected response 200, got ");
+      Serial.println(respCode);
+      Serial.println("Are you sure the server is running?");
       DebugCodes::Throw(2);
     }
     
   } else {
+    // Failed to reset. Is there a problem with the firmware?
     Serial.println("Failure.");
     DebugCodes::Throw(1);
   }
 }
 
+// Wrapper to alarm. Kept in it's own function as I may add more to what it does later.
 void alarm() {
   MakePostRequest();
 }
 
 
-// LOOP VARIABLESW
-const unsigned long MAX_OFFSET = 500;
+// LOOP VARIABLES
+const unsigned long MAX_OFFSET = 500; // max time offset - If time is greater than lastSense + this number, it is "timed out"
 bool isCat = true;
 unsigned long lastSenseBot = 0;
 unsigned long lastSenseTop = 0;
