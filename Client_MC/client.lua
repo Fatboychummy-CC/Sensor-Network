@@ -20,10 +20,10 @@ local paths = {
 
 -- determine environment connection info
 local sProtocol = "http"
-local sHttpServer = "192.168.1.80"
-local sPort = "8080"
+local sHttpServer = "##############"
+local sPort = "8080" -- Don't change this VVV
 if sEnvironment == "production" then
-  sPort = "80"
+  sPort = "80" -- Change this one instead.
 elseif sEnvironment ~= "development" then
   error("Unknown environment: " .. tostring(sEnvironment))
 end
